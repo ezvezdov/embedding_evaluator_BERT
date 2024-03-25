@@ -4,10 +4,7 @@ import numpy as np
 import optparse
 import logging
 import codecs
-import heapq
 import pickle
-
-
 
 NUM_SEMANTIC_CLASSES = 6
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -56,7 +53,6 @@ def create_vocab(word_freq_path):
     file1.close()
 
     return emb_vocab
-
 
 
 def get_analogy(emb_vocab, w1, w2, w3, topN=1):
