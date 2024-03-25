@@ -12,10 +12,6 @@ import pickle
 NUM_SEMANTIC_CLASSES = 6
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
-def cosine_vector_similarity(vec_a, vec_b):
-   sim = np.dot(vec_a, vec_b)/(np.linalg.norm(vec_a)* np.linalg.norm(vec_b))
-   return sim
-
 def get_word_embedding(word):
     inputs = tokenizer(word, return_tensors="pt", padding=True, truncation=True)
     with torch.no_grad():
@@ -61,7 +57,22 @@ def create_vocab(word_freq_path):
 
     return emb_vocab
 
+
+
 def get_analogy(emb_vocab, w1, w2, w3, topN=1):
+    """
+    Finds top N nearest words using NumPy and PyTorch (if available).
+    Utilizes GPU acceleration if a CUDA device is present.
+
+    Args:
+        emb_vocab: Dictionary mapping embeddings to their words.
+        analogy_vector: Embedding vector for the analogy word.
+        w1, w2, w3: word to generate analogy.
+        topN: Number of nearest neighbors to find.
+
+    Returns:
+        nearest_words: List of top N nearest words based on cosine similarity.
+    """
     # Encode word vectors for w1, w2, and w3
     w1_vector = get_word_embedding(w1)
     w2_vector = get_word_embedding(w2)
@@ -70,26 +81,39 @@ def get_analogy(emb_vocab, w1, w2, w3, topN=1):
     # Compute analogy vector
     analogy_vector = w2_vector - w1_vector + w3_vector
 
-    # Get embeddings from vocabulary
-    emb_list = emb_vocab.keys()
+    # Convert embeddings to NumPy array
+    emb_array = np.array(list(emb_vocab.keys()))
 
-    # Init similarities list
-    similarities = []
+    # Check for CUDA availability
+    if torch.cuda.is_available():
+        w1_tensor = torch.tensor(w1_vector).cuda()
+        w2_tensor = torch.tensor(w2_vector).cuda()
+        w3_tensor = torch.tensor(w3_vector).cuda()
+        analogy_vector = torch.tensor(analogy_vector).cuda()
+        emb_tensor = torch.tensor(emb_array).cuda()
 
-    # Calculate similarities
-    for emb in emb_list:
-        if np.array_equal(emb,w1_vector) or np.array_equal(emb,w2_vector) or np.array_equal(emb, w3_vector):
-            sim = cosine_vector_similarity(analogy_vector, emb)
-            similarities.append((-sim, emb))  # Use negative similarity for a max-heap
+        # PyTorch vectorized comparison and similarity (GPU)
+        mask = torch.all(emb_tensor != w1_tensor, dim=1) & torch.all(emb_tensor != w2_tensor, dim=1) & torch.all(emb_tensor != w3_tensor, dim=1)
+        similarities = torch.cosine_similarity(emb_tensor[mask], analogy_vector, dim=1)
+        topn_indices = torch.topk(similarities, topN).indices
+        nearest_embeddings = emb_tensor[mask][topn_indices].cpu().numpy()  # Transfer back to CPU
+    else:
+        # Fallback to NumPy (CPU)
+        mask = ~(np.linalg.norm(emb_array - w1_vector, axis=1) == 0) & \
+            ~(np.linalg.norm(emb_array - w2_vector, axis=1) == 0) & \
+            ~(np.linalg.norm(emb_array - w3_vector, axis=1) == 0)
 
-    # Creat heap to find topN
-    topn_nearest = heapq.nlargest(topN, similarities)
+        # Vectorized cosine similarity calculation (NumPy)
+        similarities = -np.dot(emb_array[mask], analogy_vector) / (
+            np.linalg.norm(emb_array[mask], axis=1) * np.linalg.norm(analogy_vector)
+        )
 
-    # Convert heap to list
-    nearest_embeddings = [emb for _, emb in topn_nearest]
+        # Get topN indices using NumPy's argpartition
+        topn_indices = np.argpartition(similarities, -topN)[-topN:]
+        nearest_embeddings = emb_array[mask][topn_indices]
 
-    # Get words by embeddings
-    nearest_words = [emb_vocab[emb] for emb  in nearest_embeddings]
+    # Reconstruct words from nearest embeddings
+    nearest_words = [emb_vocab[tuple(emb)] for emb in nearest_embeddings]
     return nearest_words
 
 def evaluate_file(filePath, topN, outputFile,emb_vocab):
@@ -237,12 +261,20 @@ if __name__ == "__main__":
     #     pickle.dump(emb_vocab, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-    # Load
+    # Load vocabulary from cache
     with open('cache/mBERT-diacritics_cs_50k.p', 'rb') as fp:
         emb_vocab = pickle.load(fp)
+
+    # Print hardware info
+    if torch.cuda.is_available():
+        print("CUDA is available!")
+        device = "CUDA"
+    else:
+        print("CUDA is not available :(")
+        device = "CPU"
+    print(f"Computing on {device}.")
 
 
     print("Start evaluation!")
     evaluate_file(options.corpus,int(options.topn), options.model, emb_vocab)
-    # print(get_analogy("boy", "prince", "girl"))
 
