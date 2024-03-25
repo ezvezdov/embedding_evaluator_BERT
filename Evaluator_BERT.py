@@ -168,14 +168,20 @@ def evaluate_file(filePath, topN, outputFile,emb_vocab):
     for val in listAccSemantic:
         avgVal = avgVal +val
         count = count + 1.0
-    semanticAcc = avgVal / count
+    if count != 0:
+        semanticAcc = avgVal / count
+    else:
+        semanticAcc = 0
 
     avgVal = 0.0
     count= 0.0
     for val in listAccSynt:
         avgVal = avgVal +val
         count = count + 1.0
-    syntacticAcc = avgVal / count
+    if count != 0:
+        syntacticAcc = avgVal / count
+    else:
+        syntacticAcc = 0
 
 
     print ("Total accuracy TOP%d = %f \n" % (topN,(accuracyAll/questionsCount)*100.0))
@@ -224,8 +230,8 @@ if __name__ == "__main__":
         pass
 
     print("Generating the vocabulary!")
-    emb_vocab = create_vocab(options.vocab)
-
+    
+    # emb_vocab = create_vocab(options.vocab)
     # Save
     # with open('cache/mBERT-diacritics_cs_50k.p', 'wb') as fp:
     #     pickle.dump(emb_vocab, fp, protocol=pickle.HIGHEST_PROTOCOL)
@@ -233,7 +239,7 @@ if __name__ == "__main__":
 
     # Load
     with open('cache/mBERT-diacritics_cs_50k.p', 'rb') as fp:
-        data = pickle.load(fp)
+        emb_vocab = pickle.load(fp)
 
 
     print("Start evaluation!")
