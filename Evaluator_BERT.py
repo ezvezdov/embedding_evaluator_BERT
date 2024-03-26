@@ -32,7 +32,7 @@ def get_sentence_embedding(sentence):
         word_embeddings = outputs.last_hidden_state # This contains the embeddings
 
     # Compute the average of word embeddings to get the sentence embedding
-    sentence_embedding = word_embeddings.mean(dim=1) # Average pooling alo
+    sentence_embedding = word_embeddings.mean(dim=1) # Average the tokens embeddings
 
     return sentence_embedding
 
@@ -225,28 +225,27 @@ if __name__ == "__main__":
     parser = optparse.OptionParser(usage="%prog [OPTIONS]")
     parser.add_option('-m', '--model', default='./models/vectors_cz_cbow_dim300_w10_phrase.txt',
                       help='Give a path with the name of a model to load (default name= vector.txt)')
+    parser.add_option('-pm', '--pretrained_model', default='',
+                      help='Give a name of a pretrained model to load')
     parser.add_option('-c', '--corpus', default='./corpus/diacritics/czech_emb_corpus.txt',
                       help='Give a name of corpus to analyze  (default: ./corpus/diacritics/czech_emb_corpus.txt)')
     parser.add_option('-v', '--vocab', default='./vocabulary/diacritics/cs_50k.txt',
                       help='Give a vocabulary to use for searching analogies(default: ./vocabulary/diacritics/cs_50k.txt)')
     parser.add_option('-t', '--topn', default='1',
-                      help='TOP N similar words')   
+                      help='TOP N similar words')
     options, args = parser.parse_args()
 
-
-
-    # Parameters
-    model_path = ''
 
 
     print("Setting the model!")
     global model
     global tokenizer
-    if model_path == '':
-        # Load BERT tokenizer and model
+
+    if options.pretrained_model:
         tokenizer = BertTokenizer.from_pretrained('google-bert/bert-base-multilingual-cased')
         model = BertModel.from_pretrained('google-bert/bert-base-multilingual-cased')
     else:
+        # TODO: load local model
         pass
 
     print("Generating the vocabulary!")
