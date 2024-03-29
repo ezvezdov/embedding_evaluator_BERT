@@ -5,6 +5,7 @@ import optparse
 import logging
 import codecs
 import pickle
+import os
 
 NUM_SEMANTIC_CLASSES = 6
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -125,9 +126,9 @@ def evaluate_file(filePath, topN, outputFile,emb_vocab):
 
     listAccSemantic = []
     listAccSynt= []
-    fw = codecs.open(outputFile[:-4]+".res"+str(topN)+".txt", 'w','utf-8' )
+    fw = codecs.open(outputFile+".res"+str(topN)+".txt", 'w','utf-8' )
     prevCategory = ": Antonyms-nouns"
-    fwerr = codecs.open(outputFile[:-4]+"err.log", 'w', 'utf-8')
+    fwerr = codecs.open(outputFile+"err.log", 'w', 'utf-8')
 
     listErr= []
 
@@ -225,7 +226,7 @@ if __name__ == "__main__":
     parser = optparse.OptionParser(usage="%prog [OPTIONS]")
     parser.add_option('-m', '--model', default='./models/vectors_cz_cbow_dim300_w10_phrase.txt',
                       help='Give a path with the name of a model to load (default name= vector.txt)')
-    parser.add_option('-pm', '--pretrained_model', default='',
+    parser.add_option('-p', '--pretrained_model', default='',
                       help='Give a name of a pretrained model to load')
     parser.add_option('-c', '--corpus', default='./corpus/diacritics/czech_emb_corpus.txt',
                       help='Give a name of corpus to analyze  (default: ./corpus/diacritics/czech_emb_corpus.txt)')
@@ -233,8 +234,11 @@ if __name__ == "__main__":
                       help='Give a vocabulary to use for searching analogies(default: ./vocabulary/diacritics/cs_50k.txt)')
     parser.add_option('-t', '--topn', default='1',
                       help='TOP N similar words')
+    parser.add_option('-o', '--output', default='./output/',
+                      help='Path for saving results of models. (default: ./output/ )')
+    parser.add_option( '--cached_vocab', default='',
+                      help='Path of created vocabulary. (disabled by default )')
     options, args = parser.parse_args()
-
 
 
     print("Setting the model!")
@@ -242,23 +246,40 @@ if __name__ == "__main__":
     global tokenizer
 
     if options.pretrained_model:
-        tokenizer = BertTokenizer.from_pretrained('google-bert/bert-base-multilingual-cased')
-        model = BertModel.from_pretrained('google-bert/bert-base-multilingual-cased')
+        print(f"Using pretrained model {options.pretrained_model}!")
+        
+        tokenizer = BertTokenizer.from_pretrained(options.pretrained_model)
+        model = BertModel.from_pretrained(options.pretrained_model)
     else:
+        print(f"Using local model!")
         # TODO: load local model
         pass
 
-    print("Generating the vocabulary!")
     
-    # emb_vocab = create_vocab(options.vocab)
-    # Save
-    # with open('cache/mBERT-diacritics_cs_50k.p', 'wb') as fp:
-    #     pickle.dump(emb_vocab, fp, protocol=pickle.HIGHEST_PROTOCOL)
+    if options.pretrained_model:
+        output_path = os.path.join(options.output,options.pretrained_model.split("/")[-1].split("\\")[-1]) 
+    else:
+        output_path = os.path.join(options.output, options.model.split("/")[-1].split("\\")[-1])
 
+    
+    # Create/Load vocabulary
+    if options.cached_vocab:
+        print("Load vocabulary from cache!")
 
-    # Load vocabulary from cache
-    with open('cache/mBERT-diacritics_cs_50k.p', 'rb') as fp:
-        emb_vocab = pickle.load(fp)
+        with open(options.cached_vocab, 'rb') as fp:
+            emb_vocab = pickle.load(fp)
+    else:
+        print("Generating the vocabulary!")
+
+        emb_vocab = create_vocab(options.vocab)
+
+        # Save
+        vocab_name = options.vocab.split("/")[-1].split("\\")[-1]
+        vocab_path = os.path.join(options.output,'cache/',vocab_name + '.p')
+        os.makedirs(os.path.dirname(vocab_path), exist_ok=True)  # Create parent directories
+
+        with open(vocab_path, 'wb') as fp:
+            pickle.dump(emb_vocab, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
     # Print hardware info
     if torch.cuda.is_available():
@@ -271,5 +292,9 @@ if __name__ == "__main__":
 
 
     print("Start evaluation!")
-    evaluate_file(options.corpus,int(options.topn), options.model, emb_vocab)
+    evaluate_file(options.corpus,int(options.topn), output_path, emb_vocab)
+
+    # emb = get_word_embedding('nejmodernější')
+    # print(emb.shape)
+
 
