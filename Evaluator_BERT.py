@@ -14,7 +14,11 @@ def get_word_embedding(word):
     inputs = tokenizer(word, return_tensors="pt", padding=True, truncation=True)
     with torch.no_grad():
         outputs = model(**inputs)
-    return outputs.last_hidden_state.mean(dim=1).squeeze().numpy()
+
+    emb = outputs.last_hidden_state.mean(dim=1).squeeze().numpy()
+    emb_normalized = emb / np.linalg.norm(emb)
+
+    return emb_normalized
 
 def get_sentence_embedding(sentence):
     encoding = tokenizer.batch_encode_plus(
@@ -249,7 +253,7 @@ if __name__ == "__main__":
         print(f"Using pretrained model {options.pretrained_model}!")
         
         tokenizer = BertTokenizer.from_pretrained(options.pretrained_model)
-        model = BertModel.from_pretrained(options.pretrained_model)
+        model = BertModel.from_pretrained(options.pretrained_model, output_hidden_states = True)
     else:
         print(f"Using local model!")
         # TODO: load local model
@@ -298,3 +302,4 @@ if __name__ == "__main__":
     # print(emb.shape)
 
 
+    # print(get_analogy(emb_vocab,"princ", "muž", "princezna", 10))
